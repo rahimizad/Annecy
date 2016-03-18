@@ -89,23 +89,23 @@ public struct Channel {
 
     let channel: dispatch_io_t
 
-    public init(mode: Mode, fileDescriptor: FileDescriptor, queue: Queue = defaultQueue, cleanUp: CleanUp) {
+    public init(mode: Mode = .Stream, fileDescriptor: FileDescriptor, queue: Queue = defaultQueue, cleanUp: CleanUp? = nil) {
         channel = dispatch_io_create(mode.value, fileDescriptor, queue.queue) { errorNumber in
             if errorNumber == 0 {
-                cleanUp(.Success)
+                cleanUp?(.Success)
             } else {
                 let error = Error.fromErrorNumber(errorNumber)
-                cleanUp(.Failure(error: error))
+                cleanUp?(.Failure(error: error))
             }
         }!
     }
 
-    public func read(offset: Offset = 0, length: Int = Int.max, queue: Queue = defaultQueue, completion: Completion) {
+    public func read(offset offset: Offset = 0, length: Int = Int.max, queue: Queue = defaultQueue, completion: Completion) {
         let mappedHandler = mapCompletion(completion)
         dispatch_io_read(channel, offset, length, queue.queue, mappedHandler)
     }
 
-    public func write(offset: Offset = 0, length: Int = Int.max, queue: Queue = defaultQueue, data: Data, completion: Completion) {
+    public func write(offset offset: Offset = 0, queue: Queue = defaultQueue, data: Data, completion: Completion) {
         let data = dispatch_data_create(data.bytes, data.bytes.count, queue.queue, nil)
         let mappedHandler = mapCompletion(completion)
         dispatch_io_write(channel, offset, data, queue.queue, mappedHandler)
