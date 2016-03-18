@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import Foundation
+import Dispatch
 
 public enum QualityOfServiceClass {
     case UserInteractive
@@ -82,7 +82,7 @@ public struct Queue {
         self.queue = queue
     }
 
-    public init(label: String = "", mode: Mode = .Serial, qualityOfServiceClass qos: QualityOfServiceClass = .Default, relativePriority: Priority = 0) {
+    public init(label: String = "", mode: Mode = .Concurrent, qualityOfServiceClass qos: QualityOfServiceClass = .Default, relativePriority: Priority = 0) {
         let attributes = dispatch_queue_attr_make_with_qos_class(mode.value, qos.value, relativePriority)
         queue = dispatch_queue_create(label, attributes)
     }
