@@ -22,7 +22,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import Foundation
+import Dispatch
 
 public struct Error: ErrorType, CustomStringConvertible {
     public let description: String
