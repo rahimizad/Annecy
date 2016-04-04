@@ -1,12 +1,6 @@
 @_exported import C7
 import Dispatch
 
-extension Data {
-    public init(_ bytes: [Byte]) {
-        self.bytes = bytes
-    }
-}
-
 public typealias FileDescriptor = Int32
 public typealias Offset = Int64
 public typealias Priority = Int32

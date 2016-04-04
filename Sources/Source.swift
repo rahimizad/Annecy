@@ -24,7 +24,7 @@
 
 import Dispatch
 
-public struct Source {
+public final class Source {
     public typealias Handle = UInt
     public typealias Mask = UInt
     public typealias Data = UInt

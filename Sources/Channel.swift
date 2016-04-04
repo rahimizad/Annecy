@@ -24,103 +24,34 @@
 
 import Dispatch
 
-public struct Channel {
-    public enum Mode {
-        case Stream
-        case RandomAccess
-
-        private var value: dispatch_io_type_t {
-            switch self {
-            case .Stream: return DISPATCH_IO_STREAM
-            case .RandomAccess: return DISPATCH_IO_RANDOM
-            }
-        }
-    }
-
-    public enum CleanUpResult {
-        case Success
-        case Failure(error: ErrorType)
-
-        public func success(f: Void -> Void) {
-            switch self {
-            case Success: f()
-            default: break
-            }
-        }
-
-        public func failure(f: ErrorType -> Void) {
-            switch self {
-            case Failure(let e): f(e)
-            default: break
-            }
-        }
-    }
-
-    public typealias CleanUp = CleanUpResult -> Void
-
-    public enum Result {
-        case Success(done: Bool, data: Data)
-        case Canceled(data: Data)
-        case Failure(error: ErrorType)
-
-        public func success(f: (done: Bool, data: Data) -> Void) {
-            switch self {
-            case Success(let done, let data): f(done: done, data: data)
-            default: break
-            }
-        }
-
-        public func failure(f: ErrorType -> Void) {
-            switch self {
-            case Failure(let e): f(e)
-            default: break
-            }
-        }
-
-        public func canceled(f: (data: Data) -> Void) {
-            switch self {
-            case Canceled(let data): f(data: data)
-            default: break
-            }
-        }
-    }
-
-    public typealias Completion = Result -> Void
+public class Channel {
+    public typealias CleanUp = ErrorType? -> Void
+    public typealias Completion = (done: Bool, data: DispatchData?, error: ErrorType?) -> Void
 
     let channel: dispatch_io_t
 
-    public init(mode: Mode = .Stream, fileDescriptor: FileDescriptor, queue: Queue = defaultQueue, cleanUp: CleanUp? = nil) {
-        channel = dispatch_io_create(mode.value, fileDescriptor, queue.queue) { errorNumber in
-            if errorNumber == 0 {
-                cleanUp?(.Success)
-            } else {
-                let error = Error.fromErrorNumber(errorNumber)
-                cleanUp?(.Failure(error: error))
-            }
-        }!
+    init(channel: dispatch_io_t) {
+        self.channel = channel
     }
-
-    public func read(offset offset: Offset = 0, length: Int = Int.max, queue: Queue = defaultQueue, completion: Completion) {
-        let mappedHandler = mapCompletion(completion)
-        dispatch_io_read(channel, offset, length, queue.queue, mappedHandler)
-    }
-
-    public func write(offset offset: Offset = 0, queue: Queue = defaultQueue, data: Data, completion: Completion) {
-        let data = dispatch_data_create(data.bytes, data.bytes.count, queue.queue, nil)
-        let mappedHandler = mapCompletion(completion)
-        dispatch_io_write(channel, offset, data, queue.queue, mappedHandler)
-    }
-
+    
     private func mapCompletion(completion: Completion) -> (done: Bool, data: dispatch_data_t!, errorNumber: Int32) -> Void {
-        return { done, data, errorNumber in
-            if errorNumber == ECANCELED {
-                completion(.Canceled(data: bufferFromData(data)))
-            } else if errorNumber != 0 {
-                let error = Error.fromErrorNumber(errorNumber)
-                completion(.Failure(error: error))
+        return { done, dispatchData, errorNumber in
+            let data: DispatchData?
+            let error: ErrorType?
+
+            if dispatchData == nil {
+                data = nil
             } else {
-                completion(.Success(done: done, data: bufferFromData(data)))
+                data = DispatchData(dispatchData: dispatchData)
             }
+
+            if errorNumber == 0 {
+                error = nil
+            } else {
+                error = Error.fromErrorNumber(errorNumber)
+            }
+
+            completion(done: done, data: data, error: error)
         }
     }
 
@@ -136,7 +67,57 @@ public struct Channel {
         return dispatch_io_get_descriptor(channel)
     }
 
-    public func close() {
-        dispatch_io_close(channel, DISPATCH_IO_STOP)
+    public func barrier(closure: Void -> Void) {
+        dispatch_io_barrier(channel, closure)
+    }
+
+    public func close(stop: Bool = false) {
+        dispatch_io_close(channel, stop ? DISPATCH_IO_STOP : 0)
+    }
+}
+
+public final class StreamChanell: Channel {
+    public init(fileDescriptor: FileDescriptor, queue: Queue = defaultQueue, cleanUp: CleanUp? = nil) {
+        let channel = dispatch_io_create(DISPATCH_IO_STREAM, fileDescriptor, queue.queue) { errorNumber in
+            if errorNumber == 0 {
+                cleanUp?(nil)
+            } else {
+                cleanUp?(Error.fromErrorNumber(errorNumber))
+            }
+        }!
+        super.init(channel: channel)
+    }
+
+    public func read(length length: Int = Int.max, queue: Queue = defaultQueue, completion: Completion) {
+        let mappedHandler = mapCompletion(completion)
+        dispatch_io_read(channel, 0, length, queue.queue, mappedHandler)
+    }
+
+    public func write(queue queue: Queue = defaultQueue, data: DispatchData, completion: Completion) {
+        let mappedHandler = mapCompletion(completion)
+        dispatch_io_write(channel, 0, data.dispatchData, queue.queue, mappedHandler)
+    }
+}
+
+public final class RandomAccessChanell: Channel {
+    public init(fileDescriptor: FileDescriptor, queue: Queue = defaultQueue, cleanUp: CleanUp? = nil) {
+        let channel = dispatch_io_create(DISPATCH_IO_RANDOM, fileDescriptor, queue.queue) { errorNumber in
+            if errorNumber == 0 {
+                cleanUp?(nil)
+            } else {
+                cleanUp?(Error.fromErrorNumber(errorNumber))
+            }
+            }!
+        super.init(channel: channel)
+    }
+
+    public func read(offset offset: Offset = 0, length: Int = Int.max, queue: Queue = defaultQueue, completion: Completion) {
+        let mappedHandler = mapCompletion(completion)
+        dispatch_io_read(channel, offset, length, queue.queue, mappedHandler)
+    }
+
+    public func write(offset offset: Offset = 0, queue: Queue = defaultQueue, data: DispatchData, completion: Completion) {
+        let mappedHandler = mapCompletion(completion)
+        dispatch_io_write(channel, offset, data.dispatchData, queue.queue, mappedHandler)
     }
 }
