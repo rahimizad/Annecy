@@ -6,16 +6,48 @@ public typealias Offset = Int64
 public typealias Priority = Int32
 public typealias Duration = UInt64
 
-public let forever = DISPATCH_TIME_FOREVER
+extension Duration {
+    public static var forever: Duration {
+        return DISPATCH_TIME_FOREVER
+    }
+}
 
-public let nanosecond = 1
-public let nanoseconds = nanosecond
+public protocol DurationConvertible {
+    var nanosecond: Duration { get }
+    var microsecond: Duration { get }
+    var millisecond: Duration { get }
+    var second: Duration { get }
+}
 
-public let microsecond = NSEC_PER_USEC
-public let microseconds = microsecond
+extension DurationConvertible {
+    public var microsecond: Duration {
+        return nanosecond * NSEC_PER_USEC
+    }
+    public var millisecond: Duration {
+        return nanosecond * NSEC_PER_MSEC
+    }
+    public var second: Duration {
+        return nanosecond * NSEC_PER_SEC
+    }
+}
 
-public let millisecond = NSEC_PER_MSEC
-public let milliseconds = millisecond
+extension DurationConvertible {
+    public var nanoseconds: Duration {
+        return nanosecond
+    }
+    public var microseconds: Duration {
+        return microsecond
+    }
+    public var milliseconds: Duration {
+        return millisecond
+    }
+    public var seconds: Duration {
+        return second
+    }
+}
 
-public let second = NSEC_PER_SEC
-public let seconds = second
+extension Int: DurationConvertible {
+    public var nanosecond: Duration {
+        return UInt64(self)
+    }
+}
